@@ -1,0 +1,88 @@
+>>>>> Flask Application with Metrics <<<<<
+1. Get the app ready locally.
+
+>>>>> Deploy Flask App on Minikube <<<<<
+2. Fire up the docker engine.
+3. Setup your Dockerfile and build the image: "docker build -t flask-metrics-app:latest ."
+4. Create the kubemanifest yaml file (flask-app.yaml)
+5. minikube start
+6. Add image to cluster - "minikube image load flask-metrics-app:latest"
+7. Apply the Kubemanifest file to our cluster - "kubectl apply -f flask-app.yaml" [from root dir of proj]
+8. Access the Flask App: Use the following to get the service URL - "minikube service flask-metrics-app --url"
+
+>>>>> Install Prometheus Using Helm <<<<<
+9. Install helm - (winget install Helm.Helm / scoop install helm / choco install kubernetes-helm)
+10. Validate if helm was installed properly - "helm version"
+11. Add Prometheus to Helm repo:
+    "helm repo add prometheus-community https://prometheus-community.github.io/helm-charts"
+    "helm repo update"
+    "helm search repo prometheus"
+12. Use helm to install Prometheus in your minikube cluster:
+    "helm install prometheus prometheus-community/prometheus --namespace monitoring --create-namespace"
+
+>>>>> Access Prometheus Dashboard <<<<<
+13. Find the Prometheus Service: List all services in the monitoring namespace - "kubectl get svc -n monitoring"
+14. Expose Prometheus Locally: Forward the Prometheus dashboard to your local machine - "kubectl port-forward -n monitoring svc/prometheus-server 9090:80"
+15. Check the 9090 port of localhost to see Prometheus UI
+
+>>>>> Configure Prometheus to Scrape Your Flask App <<<<<
+16. Get the Flask App Service IP - "kubectl get svc" (Look for the flask-metrics-app and note its ClusterIP and port.)
+    10.107.61.186 - 5000:30737/TCP
+17. Update the Prometheus ConfigMap to add your Flask app as a scrape target: "kubectl edit configmap prometheus-server -n monitoring"
+18. Look for the scrape_configs section and add:
+
+scrape_configs:
+  - job_name: 'flask-app'
+    static_configs:
+      - targets: ['10.107.61.186:5000']
+
+>> Prometheus Restart Option <<
+
+19. Identify the Labels of the Prometheus Server Pod - "kubectl get pods -n monitoring --show-labels"
+    identify the exact label for the prometheus-server-xxxxxxx pod
+20. Restart the Pod Using the Correct Label - kubectl delete pod -l app.kubernetes.io/name=prometheus-abc -n monitoring
+21. Verify the Pod Is Restarted - kubectl get pods -n monitoring
+
+-------------------------------------------------------------------------------------------------------------------------------------
+>> Alternative Restart Option <<
+
+* Get the Deployment Name: "kubectl get deploy -n monitoring" (You should see an entry for prometheus-server.)
+* Restart the Deployment: "kubectl rollout restart deployment prometheus-server -n monitoring"
+* Verify the Restart: "kubectl get pods -n monitoring"
+-------------------------------------------------------------------------------------------------------------------------------------
+
+22. After restarting the pod, verify Prometheus is scraping metrics from your Flask app: Port-forward the Prometheus dashboard
+    "kubectl port-forward -n monitoring svc/prometheus-server 9090:80"
+23. Verify Scraping: In the Prometheus dashboard, search for your metrics (e.g., total_api_requests_total)
+
+
+>>>>> Install Grafana on the Minikube Cluster <<<<<
+24. Install Grafana on the Minikube Cluster:
+    "helm repo add grafana https://grafana.github.io/helm-charts"
+    "helm repo update"
+25. Install Grafana in the Monitoring Namespace - "helm install grafana grafana/grafana -n monitoring --create-namespace"
+
+26. Now we will do the settings to make Grafana accessible locally.
+
+27. Check Grafana Installation: 'kubectl get pods -n monitoring'
+28. Verify the services created: 'kubectl get svc -n monitoring'  (you should see port: 80)
+29. Do port forwarding(only for local testing): 'kubectl port-forward svc/grafana -n monitoring 3000:80'
+
+>>> Login to Grafana <<<
+
+30. Login to Grafana: [username: admin | Check default password: see below instruction]
+    Bash - kubectl get secret --namespace monitoring grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+    Windowns Poershell - kubectl get secret --namespace monitoring grafana -o jsonpath="{.data.admin-password}" [get the base64 code]
+                         [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("<You Code>"))
+
+
+OLg3GQk870b9Fppj4hy1T5vYbC7npH8Rkp0ZCGh6
+
+
+>>>>> Add Prometheus as a Data Source <<<<<
+31. Once login to Grana, navigate to: Connection > Data Sources > Add Data Source > Prometheus >
+                                      Since Prometheus is running inside the cluster, use its ClusterIP service URL: http://prometheus-server.monitoring.svc.cluster.local:80
+                                      > Scroll down and click Save & Test.
+
+>>>>> Create Dashboards for Metrics <<<<<
+32. Go to Grafana Dashboard > New Dashboard > New Panel > 

@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-metrics-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flask-metrics-app
+  template:
+    metadata:
+      labels:
+        app: flask-metrics-app
+    spec:
+      containers:
+      - name: flask-metrics-app
+        image: flask-metrics-app:latest
+        imagePullPolicy: Never
+        resources:
+          limits:
+            memory: "64Mi"
+            cpu: "200m"
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-metrics-app
+spec:
+  selector:
+    app: flask-metrics-app
+  ports:
+  - protocol: TCP
+    port: 5000
+    targetPort: 5000
+  type: NodePort
